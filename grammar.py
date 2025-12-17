@@ -1,83 +1,83 @@
 import random
 
-class Grammar:    
+class Grammar:
     def __init__(self, variables=None):
-        #  grammar rules for boolean expressions
         self.rules = {
             '<expr>': [
-                '<expr> <op> <expr>',
-                '<op> <expr>',
+                '<term> <op> <term>',
+                '<op> <term>',
                 '<term>'
             ],
             '<op>': ['AND', 'OR', 'NOT'],
             '<term>': variables if variables else ['A', 'B', 'C']
         }
-        
-        self.rule_counts = {}
-        for nt, productions in self.rules.items():
-            self.rule_counts[nt] = len(productions)
-
         self.start_symbol = '<expr>'
     
-    # Add a new terminal variable to the grammar
+    def genotype_to_phenotype(self, genotype):
+        """Simpler and more reliable mapping."""
+        # Use first gene to choose expression type
+        if not genotype:
+            return "A"
+        
+        expr_type = genotype[0] % 3
+        
+        if expr_type == 0:  # <term> <op> <term>
+            if len(genotype) < 3:
+                return "A AND B"
+            term1_idx = genotype[1] % len(self.rules['<term>'])
+            op_idx = genotype[2] % len(self.rules['<op>'])
+            term2_idx = genotype[3] % len(self.rules['<term>']) if len(genotype) > 3 else 0
+            
+            term1 = self.rules['<term>'][term1_idx]
+            op = self.rules['<op>'][op_idx]
+            term2 = self.rules['<term>'][term2_idx]
+            
+            return f"{term1} {op} {term2}"
+            
+        elif expr_type == 1:  # <op> <term>
+            if len(genotype) < 2:
+                return "NOT A"
+            op_idx = genotype[1] % len(self.rules['<op>'])
+            term_idx = genotype[2] % len(self.rules['<term>']) if len(genotype) > 2 else 0
+            
+            op = self.rules['<op>'][op_idx]
+            term = self.rules['<term>'][term_idx]
+            
+            # NOT is the only unary operator
+            if op == 'NOT':
+                return f"{op} {term}"
+            else:
+                # For AND/OR, need two terms
+                term2_idx = genotype[3] % len(self.rules['<term>']) if len(genotype) > 3 else 1
+                term2 = self.rules['<term>'][term2_idx]
+                return f"{term} {op} {term2}"
+                
+        else:  # Just <term>
+            term_idx = genotype[1] % len(self.rules['<term>']) if len(genotype) > 1 else 0
+            return self.rules['<term>'][term_idx]
+    
+    def is_valid_program(self, program_str):
+        """Check if program is valid Boolean expression."""
+        tokens = program_str.split()
+        if not tokens:
+            return False
+        
+        operators = ['AND', 'OR', 'NOT']
+        variables = self.rules['<term>']
+        
+        # Quick check: all tokens must be valid
+        for token in tokens:
+            if token not in variables and token not in operators:
+                return False
+        
+        return True
+    
+    def get_random_genotype(self, length=10):
+        return [random.randint(0, 9) for _ in range(length)]
+    
     def add_variable(self, variable):
         if variable not in self.rules['<term>']:
             self.rules['<term>'].append(variable)
-            self.rule_counts['<term>'] = len(self.rules['<term>'])
     
-    # Set the terminal variables dynamically
     def set_variables(self, variables):
         self.rules['<term>'] = variables
-        self.rule_counts['<term>'] = len(variables)
-    
-    # Convert genotype to phenotype (program string)
-    def genotype_to_phenotype(self, genotype):
-        stack = [self.start_symbol]
-        output = []
-        gene_index = 0
-        
-        # Map genotype through production rules
-        while stack and gene_index < len(genotype):
-            current = stack.pop(0)
-            
-            if current in self.rules:
-                productions = self.rules[current]
-                choice = genotype[gene_index] % len(productions)
-                gene_index += 1
-                
-                # Expand non-terminal
-                production = productions[choice]
-                symbols = production.split()
-
-                stack = symbols + stack
-            else:
-                output.append(current)
-        
-        while stack:
-            symbol = stack.pop(0)
-            if symbol not in ['<expr>', '<op>', '<term>']:
-                output.append(symbol)
-        
-        return ' '.join(output).replace('<', '').replace('>', '').strip()
-    
-    # Check if program string follows grammar rules
-    def is_valid_program(self, program_str):
-        try:
-            tokens = program_str.split()
-            valid_terms = set(self.rules['<term>'])
-            valid_ops = set(self.rules['<op>'])
-            
-            for token in tokens:
-                if token not in valid_terms and token not in valid_ops:
-                    return False
-            return True
-        except:
-            return False
-    
-    def get_random_genotype(self, length=10):
-        rand_genotype = []
-        for _ in range(length):
-            curr = random.randint(0, 9)
-            rand_genotype.append(curr)
-
-        return rand_genotype
