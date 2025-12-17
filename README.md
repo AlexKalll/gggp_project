@@ -69,10 +69,3 @@ python -m pytest tests/
 # Run specific test
 python -m pytest tests/test_grammar.py
 ```
-
-## Key Features
-
-1. **Grammar-guided operations**: All crossover and mutation respect grammar rules
-2. **Complexity penalty**: Fitness includes penalty for program complexity
-3. **Least complex selection**: Can retrieve simplest solution within fitness threshold
-4. **Dynamic variables**: Grammar can be extended with new variables at runtime
