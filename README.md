@@ -1,1 +1,3 @@
-# gggp_project
+# GGGP Project
+
+Grammar-Guided Genetic Programming Implementation
