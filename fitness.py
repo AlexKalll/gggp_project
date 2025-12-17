@@ -102,46 +102,74 @@ def evaluate_truth_table(program_str, variables):
         return evaluate_program_quality(program_str, variables)
 
 def evaluate_expression(program_str, env):
-    """Evaluate Boolean expression with given environment."""
+    """Evaluate Boolean expression written in infix form using a
+    shunting-yard algorithm to convert to postfix and then evaluate.
+    Supports variables present in `env`, and operators `NOT`, `AND`, `OR`.
+    """
+    if not program_str:
+        return False
+
     tokens = program_str.split()
-    stack = []
-    
-    i = 0
-    while i < len(tokens):
-        token = tokens[i]
-        
-        if token == 'NOT':
-            # Look ahead for next token
-            if i + 1 < len(tokens):
-                next_token = tokens[i + 1]
-                if next_token in env:
-                    stack.append(not env[next_token])
-                    i += 2
+
+    # Define operator precedence and arity
+    ops = {
+        'NOT': (3, 'right', 1),
+        'AND': (2, 'left', 2),
+        'OR': (1, 'left', 2),
+    }
+
+    # Shunting-yard: infix -> postfix
+    output_queue = []
+    op_stack = []
+
+    for token in tokens:
+        if token in env:
+            output_queue.append(token)
+        elif token in ops:
+            prec, assoc, arity = ops[token]
+            while op_stack:
+                top = op_stack[-1]
+                if top not in ops:
+                    break
+                top_prec, top_assoc, _ = ops[top]
+                if (assoc == 'left' and prec <= top_prec) or (assoc == 'right' and prec < top_prec):
+                    output_queue.append(op_stack.pop())
                 else:
-                    # NOT NOT case
-                    stack.append(False)
-                    i += 1
-            else:
-                i += 1
-                
-        elif token in ['AND', 'OR']:
-            if len(stack) >= 2:
-                b = stack.pop()
-                a = stack.pop()
-                if token == 'AND':
-                    stack.append(a and b)
-                else:
-                    stack.append(a or b)
-            i += 1
-            
-        elif token in env:
-            stack.append(env[token])
-            i += 1
-            
+                    break
+            op_stack.append(token)
         else:
-            i += 1
-    
-    return stack[0] if stack else False
+            # Unknown token: ignore
+            continue
+
+    while op_stack:
+        output_queue.append(op_stack.pop())
+
+    # Evaluate postfix
+    eval_stack = []
+    for token in output_queue:
+        if token in env:
+            eval_stack.append(bool(env[token]))
+        elif token in ops:
+            _, _, arity = ops[token]
+            if arity == 1:
+                if not eval_stack:
+                    return False
+                a = eval_stack.pop()
+                eval_stack.append(not a)
+            else:
+                if len(eval_stack) < 2:
+                    return False
+                b = eval_stack.pop()
+                a = eval_stack.pop()
+                if token == 'AND':
+                    eval_stack.append(a and b)
+                else:
+                    eval_stack.append(a or b)
+        else:
+            # ignore unknown
+            pass
+
+    return eval_stack[-1] if eval_stack else False
 
 def measure_complexity(program_str):
     """Complexity measurement."""
@@ -159,18 +187,8 @@ def measure_complexity(program_str):
 
 def fitness_with_penalty(program_str, variables, complexity_weight=0.02):  # Very small penalty
     """Final fitness calculation."""
-    # Try truth table evaluation
+    # Use truth-table accuracy as the primary fitness signal when possible.
     accuracy = evaluate_truth_table(program_str, variables)
-    
-    # If truth table gives good score, use it
-    if accuracy > 0.5:
-        complexity = measure_complexity(program_str)
-        fitness = accuracy - (complexity_weight * complexity)
-        return max(fitness, 0.0)
-    
-    # Otherwise use program quality
-    quality = evaluate_program_quality(program_str, variables)
     complexity = measure_complexity(program_str)
-    fitness = quality - (complexity_weight * complexity)
-    
+    fitness = accuracy - (complexity_weight * complexity)
     return max(fitness, 0.0)

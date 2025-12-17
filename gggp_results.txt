@@ -1,5 +1,5 @@
 Best Solution Found:
-Fitness: 0.970
-Program: A OR A
-Complexity: 1.5
-Genotype: [0, 0, 1, 0]
+Fitness: 0.710
+Program: A OR B
+Complexity: 2.0
+Genotype: [0, 9, 7, 5, 7, 6]

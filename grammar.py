@@ -4,57 +4,73 @@ class Grammar:
     def __init__(self, variables=None):
         self.rules = {
             '<expr>': [
-                '<term> <op> <term>',
-                '<op> <term>',
+                '<term> <op_bin> <expr>',
+                '<unop> <expr>',
                 '<term>'
             ],
-            '<op>': ['AND', 'OR', 'NOT'],
+            '<op_bin>': ['AND', 'OR'],
+            '<unop>': ['NOT'],
             '<term>': variables if variables else ['A', 'B', 'C']
         }
         self.start_symbol = '<expr>'
     
     def genotype_to_phenotype(self, genotype):
-        """Simpler and more reliable mapping."""
-        # Use first gene to choose expression type
+        """Recursive genotype-to-phenotype mapping using grammar productions.
+
+        The genotype is consumed sequentially as a stream of decision genes. When
+        the genotype runs out we wrap-around using modulo indexing so mapping is
+        robust to length. This allows nested expressions such as
+        (A AND (NOT B)) OR (NOT A AND B) to be constructed.
+        """
         if not genotype:
-            return "A"
-        
-        expr_type = genotype[0] % 3
-        
-        if expr_type == 0:  # <term> <op> <term>
-            if len(genotype) < 3:
-                return "A AND B"
-            term1_idx = genotype[1] % len(self.rules['<term>'])
-            op_idx = genotype[2] % len(self.rules['<op>'])
-            term2_idx = genotype[3] % len(self.rules['<term>']) if len(genotype) > 3 else 0
-            
-            term1 = self.rules['<term>'][term1_idx]
-            op = self.rules['<op>'][op_idx]
-            term2 = self.rules['<term>'][term2_idx]
-            
-            return f"{term1} {op} {term2}"
-            
-        elif expr_type == 1:  # <op> <term>
-            if len(genotype) < 2:
-                return "NOT A"
-            op_idx = genotype[1] % len(self.rules['<op>'])
-            term_idx = genotype[2] % len(self.rules['<term>']) if len(genotype) > 2 else 0
-            
-            op = self.rules['<op>'][op_idx]
-            term = self.rules['<term>'][term_idx]
-            
-            # NOT is the only unary operator
-            if op == 'NOT':
-                return f"{op} {term}"
+            return self.rules['<term>'][0]
+
+        # Use an index closure so recursive calls can advance the read position
+        idx = 0
+
+        def pick_gene(mod):
+            nonlocal idx
+            if not genotype:
+                return 0
+            val = genotype[idx % len(genotype)] % mod
+            idx += 1
+            return val
+
+        MAX_DEPTH = 4
+
+        def expand(symbol, depth=0):
+            if symbol == '<term>':
+                term_list = self.rules['<term>']
+                term = term_list[pick_gene(len(term_list))]
+                return term
+
+            if symbol == '<op_bin>':
+                op_list = self.rules['<op_bin>']
+                return op_list[pick_gene(len(op_list))]
+
+            if symbol == '<unop>':
+                u_list = self.rules['<unop>']
+                return u_list[pick_gene(len(u_list))]
+
+            # symbol is '<expr>'
+            # Prevent runaway recursion: force terminal production at max depth
+            productions = self.rules['<expr>']
+            if depth >= MAX_DEPTH:
+                prod = '<term>'
             else:
-                # For AND/OR, need two terms
-                term2_idx = genotype[3] % len(self.rules['<term>']) if len(genotype) > 3 else 1
-                term2 = self.rules['<term>'][term2_idx]
-                return f"{term} {op} {term2}"
-                
-        else:  # Just <term>
-            term_idx = genotype[1] % len(self.rules['<term>']) if len(genotype) > 1 else 0
-            return self.rules['<term>'][term_idx]
+                prod = productions[pick_gene(len(productions))]
+            parts = prod.split()
+            expanded = []
+            for part in parts:
+                if part.startswith('<') and part.endswith('>'):
+                    expanded.append(expand(part, depth+1))
+                else:
+                    # terminals like AND/OR/NOT are returned directly
+                    expanded.append(part)
+            # Join with spaces; remove possible duplicate operands where possible
+            return ' '.join(expanded)
+
+        return expand(self.start_symbol)
     
     def is_valid_program(self, program_str):
         """Check if program is valid Boolean expression."""
