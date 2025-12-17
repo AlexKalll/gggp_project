@@ -20,6 +20,16 @@ class Grammar:
         for nt, productions in self.rules.items():
             self.rule_counts[nt] = len(productions)
 
+        # Backwards compatibility: keep '<op>' as combined unary+binary operators
+        combined_ops = []
+        if '<op_bin>' in self.rules:
+            combined_ops.extend(self.rules['<op_bin>'])
+        if '<unop>' in self.rules:
+            combined_ops.extend(self.rules['<unop>'])
+        # ensure '<op>' exists for older callers/tests
+        self.rules['<op>'] = combined_ops
+        self.rule_counts['<op>'] = len(combined_ops)
+
         self.start_symbol = '<expr>'
     
     # Add a new terminal variable to the grammar

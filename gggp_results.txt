@@ -1,5 +1,5 @@
 Best Solution Found:
 Fitness: 0.648
-Program: A AND C
+Program: C AND B
 Complexity: 1
-Genotype: [3, 8, 8, 2, 8, 0, 1, 6, 5, 8, 1, 6, 6, 5, 9]
+Genotype: [6, 6, 0, 1, 4, 0, 9, 8, 2, 3, 0, 0, 8, 2, 8]
