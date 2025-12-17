@@ -38,9 +38,21 @@ class Population:
         self.variables = variables
         self.elite_size = elite_size
         
-        # Initialize random population
+        # Initialize population with useful seed patterns then random individuals
         self.individuals = []
-        for _ in range(size):
+        seed_patterns = [
+            [1, 0, 0, 1],  # A AND B
+            [0, 0, 1, 0],  # A OR B
+            [1, 2, 0],     # NOT A
+            [1, 0, 2, 1],  # A AND C
+        ]
+
+        for pat in seed_patterns:
+            if len(self.individuals) < size:
+                self.individuals.append(Individual(pat, grammar))
+
+        # Fill rest randomly
+        for _ in range(size - len(self.individuals)):
             genotype = grammar.get_random_genotype(length=15)
             self.individuals.append(Individual(genotype, grammar))
         
@@ -99,16 +111,19 @@ class Population:
         """Grammar-preserving mutation."""
         for i in range(self.elite_size, len(self.individuals)):
             if random.random() < mutation_rate:
-                genotype = self.individuals[i].genotype
-                
-                # Mutate random gene
-                idx = random.randint(0, len(genotype) - 1)
-                genotype[idx] = random.randint(0, 9)
-                
+                genotype = self.individuals[i].genotype.copy()
+
+                # Mutate: change or insert a gene with reasonable probability
+                if genotype and random.random() < 0.8:
+                    idx = random.randint(0, len(genotype) - 1)
+                    genotype[idx] = random.randint(0, 9)
+                else:
+                    genotype.append(random.randint(0, 9))
+
                 # Update individual
                 self.individuals[i] = Individual(genotype, self.grammar)
     
-    def evolve(self, generations=50, no_improvement_limit=10):
+    def evolve(self, generations=50, no_improvement_limit=None):
         """
         Run evolution for specified generations. returns Individual: Best solution found
         """
@@ -127,14 +142,15 @@ class Population:
                 else:
                     no_improvement = 0
             
-            if no_improvement >= no_improvement_limit:
+            if no_improvement_limit is not None and no_improvement >= no_improvement_limit:
                 print(f"Stopping early at generation {gen} (no improvement)")
                 break
             
             # Evolutionary operators
             self.selection()
             self.crossover()
-            self.mutation()
+            # slightly higher mutation to improve exploration
+            self.mutation(mutation_rate=0.2)
             
             self.generation += 1
         

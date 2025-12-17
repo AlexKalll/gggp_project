@@ -7,11 +7,12 @@ class GGGPSystem:
     def __init__(self, variables=None, pop_size=100, complexity_weight=0.1):
         self.variables = variables or ['A', 'B', 'C']
         
-        # Initialize grammar with variables
-        self.grammar = Grammar(self.variables)
+        # Initialize grammar with variables (use simple decoder for predictable mapping)
+        self.grammar = Grammar(self.variables, simple=True)
         
         # Initialize fitness function with complexity penalty
-        self.fitness_func = lambda prog: fitness_with_penalty(prog, self.variables, complexity_weight)
+        # Accept (prog, variables) signature used by Population/Individual
+        self.fitness_func = lambda prog, vars=None: fitness_with_penalty(prog, self.variables, complexity_weight)
         
         # Initialize population
         self.population = Population(
@@ -19,7 +20,7 @@ class GGGPSystem:
             grammar=self.grammar,
             fitness_func=self.fitness_func,
             variables=self.variables,
-            elite_size=2
+            elite_size=1
         )
         
         self.best_solution = None
@@ -82,13 +83,13 @@ def main():
     # Initialize system
     system = GGGPSystem(
         variables=variables,
-        pop_size=50,
-        complexity_weight=0.15  
+        pop_size=100,
+        complexity_weight=0.02
     )
     
     system.test_genotype_mapping([0, 2, 2, 1, 0, 2])
 
-    best = system.run_evolution(generations=30)
+    best = system.run_evolution(generations=100)
     save_results(best)
     
     return best

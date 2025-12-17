@@ -1,18 +1,21 @@
 import random
 
-class Grammar:    
-    def __init__(self, variables=None):
-        #  grammar rules for boolean expressions
+class Grammar:
+    def __init__(self, variables=None, simple=True):
+        # allow a simple positional decoder (matches earlier examples)
+        self.simple = simple
+        #  grammar rules for boolean expressions (used in complex mode)
         self.rules = {
             '<expr>': [
-                '<expr> <op> <expr>',
-                '<op> <expr>',
+                '<expr> <op_bin> <expr>',
+                '<unop> <expr>',
                 '<term>'
             ],
-            '<op>': ['AND', 'OR', 'NOT'],
+            '<op_bin>': ['AND', 'OR'],
+            '<unop>': ['NOT'],
             '<term>': variables if variables else ['A', 'B', 'C']
         }
-        
+
         self.rule_counts = {}
         for nt, productions in self.rules.items():
             self.rule_counts[nt] = len(productions)
@@ -32,6 +35,45 @@ class Grammar:
     
     # Convert genotype to phenotype (program string)
     def genotype_to_phenotype(self, genotype):
+        # Simple positional decoder (keeps tests / examples stable)
+        if self.simple:
+            if not genotype:
+                return 'A'
+
+            expr_type = genotype[0] % 3
+            # <term> <op> <term>
+            if expr_type == 0:
+                if len(genotype) < 4:
+                    return 'A AND B'
+                term1 = self.rules['<term>'][genotype[1] % len(self.rules['<term>'])]
+                # choose only a binary operator here
+                op = self.rules['<op_bin>'][genotype[2] % len(self.rules['<op_bin>'])]
+                term2 = self.rules['<term>'][genotype[3] % len(self.rules['<term>'])]
+
+                # avoid trivial duplicates when possible
+                if term1 == term2 and len(self.rules['<term>']) > 1:
+                    term2 = self.rules['<term>'][(genotype[3] + 1) % len(self.rules['<term>'])]
+
+                return f"{term1} {op} {term2}"
+
+            # <op> <term> (unary) or binary using same pattern
+            if expr_type == 1:
+                if len(genotype) < 3:
+                    return 'NOT A'
+                op = self.rules['<unop>'][genotype[1] % len(self.rules['<unop>'])]
+                term = self.rules['<term>'][genotype[2] % len(self.rules['<term>'])]
+                if op == 'NOT':
+                    return f"{op} {term}"
+                else:
+                    term2 = self.rules['<term>'][genotype[3] % len(self.rules['<term>'])] if len(genotype) > 3 else term
+                    if term == term2 and len(self.rules['<term>']) > 1:
+                        term2 = self.rules['<term>'][(genotype[3] + 1) % len(self.rules['<term>'])]
+                    return f"{term} {op} {term2}"
+
+            # Just a term
+            return self.rules['<term>'][genotype[1] % len(self.rules['<term>'])] if len(genotype) > 1 else self.rules['<term>'][0]
+
+        # Complex grammar-driven decoder (existing implementation)
         stack = [self.start_symbol]
         output = []
         gene_index = 0
@@ -64,14 +106,40 @@ class Grammar:
     def is_valid_program(self, program_str):
         try:
             tokens = program_str.split()
-            valid_terms = set(self.rules['<term>'])
-            valid_ops = set(self.rules['<op>'])
-            
-            for token in tokens:
-                if token not in valid_terms and token not in valid_ops:
+            if not tokens:
+                return False
+
+            terms = set(self.rules['<term>'])
+            bin_ops = set(self.rules.get('<op_bin>', ['AND', 'OR']))
+            un_ops = set(self.rules.get('<unop>', ['NOT']))
+
+            i = 0
+            # allow sequences with optional leading NOTs
+            def parse_factor(idx):
+                # handle repeated NOTs
+                while idx < len(tokens) and tokens[idx] in un_ops:
+                    idx += 1
+                if idx < len(tokens) and tokens[idx] in terms:
+                    return idx + 1
+                return -1
+
+            # first factor
+            idx = parse_factor(0)
+            if idx == -1:
+                return False
+
+            # then zero or more (bin_op factor)
+            while idx < len(tokens):
+                if tokens[idx] not in bin_ops:
                     return False
+                idx += 1
+                idx2 = parse_factor(idx)
+                if idx2 == -1:
+                    return False
+                idx = idx2
+
             return True
-        except:
+        except Exception:
             return False
     
     def get_random_genotype(self, length=10):
